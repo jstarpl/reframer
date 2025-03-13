@@ -3,7 +3,7 @@ const traces: Record<string, number[]> = {}
 export const startTrace = (name: string) => {
 	return {
 		start: Date.now(),
-		name
+		name,
 	}
 }
 
@@ -15,7 +15,7 @@ export const endTrace = (trace: { start: number; name: string }) => {
 
 setInterval(() => {
 	console.log('timings')
-	for (let [name, durs] of Object.entries(traces)) {
+	for (const [name, durs] of Object.entries(traces)) {
 		console.log(name + ' took ' + durs.reduce((a, b) => a + b, 0) / durs.length)
 		traces[name] = []
 	}

@@ -1,13 +1,13 @@
 import redio, { Generator, Spout, Valve, isEnd, isValue, end } from 'redioactive'
 import * as Grandiose from 'grandiose'
-import * as Beamcoder from 'beamcoder'
+import * as beamcoder from 'beamcoder-prebuild'
 import { analyse, AnalyseResult, AnalysisResultClass } from './analyse'
 import { OSCServer, OSCType } from 'ts-osc'
 
 const MAX_FRAMES = 6 // 2 secs at 25fps
 
 interface AnalysisResult {
-	frame: Beamcoder.Frame
+	frame: beamcoder.Frame
 	analysis?: Analysis
 }
 interface Analysis {
@@ -16,10 +16,10 @@ interface Analysis {
 }
 
 async function main() {
-	const sources: { name: string; urlAddress: any }[] = await (Grandiose as any).find()
+	const sources: { name: string; urlAddress?: any }[] = await Grandiose.find({ showLocalSources: true }, 10000)
 	// const found = sources.find((s) => s.name.match(/monitor 1/i))
 	// const found = sources.find((s) => s.name.match(/ccg1/i))
-	const found = sources.find((s) => s.name.match(/OBS/i))
+	const found = sources.find((s) => s.name.match(/vMix/i))
 	console.log(sources)
 	if (!found) throw new Error('Could not find NDI source for CCG1')
 	const receiver = await Grandiose.receive({ source: found, colorFormat: Grandiose.ColorFormat.BGRX_BGRA })
@@ -61,7 +61,7 @@ async function main() {
 	oscServer.on('close', oscServer.close)
 
 	let frameNo = 0
-	const detectFilter = await Beamcoder.filterer({
+	const detectFilter = await beamcoder.filterer({
 		filterType: 'video',
 		inputParams: [
 			{
@@ -93,11 +93,11 @@ async function main() {
 		// console.log(frame.fourCC)
 		return frame
 	}
-	const ndiFrameToFFmpegFrame: Valve<Grandiose.VideoFrame, Beamcoder.Frame> = (frame) => {
+	const ndiFrameToFFmpegFrame: Valve<Grandiose.VideoFrame, beamcoder.Frame> = (frame) => {
 		if (isValue(frame)) {
 			const data = Buffer.alloc(frame.lineStrideBytes * frame.yres)
 			frame.data.copy(data)
-			const beamFrame = Beamcoder.frame({
+			const beamFrame = beamcoder.frame({
 				linesize: [frame.lineStrideBytes],
 				width: frame.xres,
 				height: frame.yres,
@@ -112,10 +112,10 @@ async function main() {
 			return end
 		}
 	}
-	let lastFrame: Beamcoder.Frame
-	const pairFrames: Valve<Beamcoder.Frame, Beamcoder.Frame[]> = async (frame) => {
+	let lastFrame: beamcoder.Frame
+	const pairFrames: Valve<beamcoder.Frame, beamcoder.Frame[]> = async (frame) => {
 		if (isValue(frame)) {
-			let frames = []
+			const frames = []
 			if (lastFrame) frames.push(lastFrame)
 			frames.push(frame)
 			lastFrame = frame
@@ -124,10 +124,10 @@ async function main() {
 			return frame
 		}
 	}
-	const analyseFrames: Valve<Beamcoder.Frame[], AnalysisResult> = async (frames) => {
+	const analyseFrames: Valve<beamcoder.Frame[], AnalysisResult> = async (frames) => {
 		if (isValue(frames)) {
 			// console.log(frames.length)
-			let filt_frames = await detectFilter.filter(frames)
+			const filt_frames = await detectFilter.filter(frames)
 			const result: AnalysisResult = {
 				frame: frames[1] || frames[0],
 			}
@@ -164,7 +164,7 @@ async function main() {
 			return frames
 		}
 	}
-	const filter2 = await Beamcoder.filterer({
+	const filter2 = await beamcoder.filterer({
 		filterType: 'video',
 		inputParams: [
 			{
@@ -184,20 +184,20 @@ async function main() {
 		filterSpec: `crop=w=1080:h=1080:x=420:y=0,scale=1080:-1,pad=1080:1080:0:(oh-ih)/2:eval=frame:color=#00000000`,
 		// filterSpec: `crop=w=1080:h=1080:x=420:y=0:out_w=1080,drawtext=text='x ? k ${controller.k_p} i ${controller.k_i} d ${controller.k_d}':fontcolor=white:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th`,
 	})
-	const enc2 = Beamcoder.encoder({
+	const enc2 = beamcoder.encoder({
 		name: 'rawvideo',
 		width: 1080,
 		height: 1080,
 		pix_fmt: 'bgra',
 		time_base: [1, 1],
 	})
-	const frameBuffer: Beamcoder.Frame[] = []
+	const frameBuffer: beamcoder.Frame[] = []
 	const ffmpegFrameToNDI: Valve<
-		{ cropped: Beamcoder.Frame; cropValues: { x: number; w: number }; orig: Beamcoder.Frame } | undefined,
+		{ cropped: beamcoder.Frame; cropValues: { x: number; w: number }; orig: beamcoder.Frame } | undefined,
 		Grandiose.VideoFrame | undefined
 	> = async (frame) => {
 		if (isValue(frame) && frame !== undefined) {
-			let newFrame: Beamcoder.Frame | undefined
+			let newFrame: beamcoder.Frame | undefined
 			if (override.x ?? override.w ?? false) {
 				newFrame = await cropFrame(
 					frame.orig,
@@ -274,7 +274,7 @@ async function main() {
 		await wait
 	}
 
-	const encoder = Beamcoder.encoder({
+	const encoder = beamcoder.encoder({
 		name: 'rawvideo',
 		width: 1080,
 		height: 1080,
@@ -282,7 +282,7 @@ async function main() {
 		time_base: [1, 1],
 	})
 	// create cropping filter
-	const filter = await Beamcoder.filterer({
+	const filter = await beamcoder.filterer({
 		filterType: 'video',
 		inputParams: [
 			{
@@ -352,9 +352,9 @@ async function main() {
 	let lastAccelW: { x?: number; dx?: number } = {}
 	let current: undefined | [number, number]
 	const cropFrameFromAnalysis = async (
-		frame: Beamcoder.Frame,
+		frame: beamcoder.Frame,
 		detectionPoints: Analysis[]
-	): Promise<{ frame: Beamcoder.Frame; dims: { x: number; w: number } } | undefined> => {
+	): Promise<{ frame: beamcoder.Frame; dims: { x: number; w: number } } | undefined> => {
 		let x = 420
 		let w = 1080
 
@@ -480,10 +480,10 @@ async function main() {
 		return { frame: await cropFrame(frame, { x, w }, filter, encoder), dims: { x, w } }
 	}
 	const cropFrame = async (
-		frame: Beamcoder.Frame,
+		frame: beamcoder.Frame,
 		{ x, w }: { x: number; w: number },
-		filter: Beamcoder.Filterer,
-		encoder: Beamcoder.Encoder
+		filter: beamcoder.Filterer,
+		encoder: beamcoder.Encoder
 	) => {
 		// if (x === 0) console.log('x is zero')
 		const cFilter = filter.graph.filters.find((f) => f.name.match(/crop/i))
@@ -501,7 +501,7 @@ async function main() {
 		const encodedFrame = encodedPacket.packets[0]?.data
 		if (!encodedFrame) return frame
 
-		const newFrame = Beamcoder.frame({ width: 1080, height: 1080, format: 'bgra' })
+		const newFrame = beamcoder.frame({ width: 1080, height: 1080, format: 'bgra' })
 		newFrame.alloc()
 		encodedFrame.copy(newFrame.data[0])
 
@@ -512,14 +512,14 @@ async function main() {
 	const detectionPoints: Analysis[] = []
 	const cropAndBuffer: Valve<
 		AnalysisResult,
-		{ cropped: Beamcoder.Frame; cropValues: { x: number; w: number }; orig: Beamcoder.Frame }
+		{ cropped: beamcoder.Frame; cropValues: { x: number; w: number }; orig: beamcoder.Frame }
 	> = async (analysis) => {
 		if (isValue(analysis)) {
 			if (analysis.analysis) {
 				if (analysis.analysis.sceneChange) {
 					console.log('scene change')
-					const frames: { cropped: Beamcoder.Frame; cropValues: { x: number; w: number }; orig: Beamcoder.Frame }[] = []
-					for (let frame of frameBuffer) {
+					const frames: { cropped: beamcoder.Frame; cropValues: { x: number; w: number }; orig: beamcoder.Frame }[] = []
+					for (const frame of frameBuffer) {
 						const croppedFrame = await cropFrameFromAnalysis(frame, detectionPoints)
 						if (croppedFrame) frames.push({ cropped: croppedFrame.frame, cropValues: croppedFrame.dims, orig: frame })
 					}
@@ -564,4 +564,4 @@ async function main() {
 		.valve(ffmpegFrameToNDI, { bufferSizeMax: 2 * MAX_FRAMES })
 		.spout(frameConsumer)
 }
-main()
+main().catch(console.error)

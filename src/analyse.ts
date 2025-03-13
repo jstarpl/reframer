@@ -11,7 +11,7 @@ interface Message {
 	args?: any[]
 }
 
-let models = {} as {
+const models = {} as {
 	faceModel?: blazeface.BlazeFaceModel
 	objModel?: cocoSsd.ObjectDetection
 }
@@ -31,7 +31,7 @@ if (isMainThread) {
 	})
 }
 
-export async function initModels() {
+export async function initModels(): Promise<void> {
 	if (isMainThread && worker) {
 		worker.postMessage({ fn: 'initModels' })
 		await new Promise<void>((r) => {
@@ -89,7 +89,7 @@ const classificationToClass = {
 	giraffe: AnalysisResultClass.Animal,
 }
 
-export async function analyse(rawData?: Buffer, png?: Buffer) {
+export async function analyse(rawData?: Buffer, png?: Buffer): Promise<AnalyseResult> {
 	if (isMainThread && worker) {
 		// console.log([rawData, png].filter((i): i is Buffer => i !== undefined))
 		worker.postMessage({ fn: 'analyse', args: [rawData, png] })
