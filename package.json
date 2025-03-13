@@ -1,10 +1,10 @@
 {
-	"name": "tensorflow-test",
-	"version": "1.0.0",
+	"name": "reframer",
+	"version": "0.0.1",
 	"main": "dist/index.js",
 	"license": "MIT",
 	"engines": {
-		"node": ">=14.16"
+		"node": ">=16.20"
 	},
 	"devDependencies": {
 		"@sofie-automation/code-standard-preset": "^0.4.2",
