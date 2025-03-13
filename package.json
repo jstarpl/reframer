@@ -41,7 +41,6 @@
 		"@tensorflow-models/coco-ssd": "^2.2.2",
 		"@tensorflow/tfjs-node": "^3.8.0",
 		"beamcoder-prebuild": "0.7.1-rc.18",
-		"canvas": "^2.8.0",
 		"grandiose": "git://github.com/Streampunk/grandiose.git#c350e0f",
 		"macadam": "^2.0.16",
 		"redioactive": "^0.0.17",
